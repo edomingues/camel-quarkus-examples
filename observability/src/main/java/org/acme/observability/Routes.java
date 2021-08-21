@@ -16,12 +16,27 @@
  */
 package org.acme.observability;
 
-import org.apache.camel.builder.RouteBuilder;
+import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 
+import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.opentracing.OpenTracingTracer;
+import org.apache.camel.opentracing.OpenTracingTracingStrategy;
+
+@ApplicationScoped
 public class Routes extends RouteBuilder {
 
+    @Inject
+    ExampleProcessor exampleProcessor;
+
     @Override
-    public void configure() throws Exception {
+    public void configure() {
+
+        // Create spans for each processor
+        OpenTracingTracer tracer = new OpenTracingTracer();
+        tracer.setTracingStrategy(new OpenTracingTracingStrategy(tracer));
+        tracer.init(getContext());
+
         // Invokes a simple greeting endpoint every 10 seconds
         from("timer:greeting?period=10000")
                 .to("netty-http:http://localhost:8099/greeting");
@@ -29,6 +44,7 @@ public class Routes extends RouteBuilder {
         from("netty-http:0.0.0.0:8099/greeting")
                 // Random delay to simulate latency
                 .delay(simple("${random(1000, 5000)}"))
+                .process(exampleProcessor)
                 .setBody(constant("Hello From Camel Quarkus!"));
     }
 }
